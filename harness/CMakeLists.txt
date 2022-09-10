@@ -1,6 +1,5 @@
 # CXX flags
-add_compile_options(-m64 -O3 -pedantic-errors
-                    -Wall -Wextra -Werror)
+add_compile_options(-m64 -O3 -Wall)
 
 link_libraries(sctp)
 add_library(harness SHARED networking.c message.c)
