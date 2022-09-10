@@ -29,13 +29,13 @@ You can run mixnet in two modes: an 'autotester' mode, which we will be using to
 
 To run in autotester mode, `cd` into the build directory and run:
 ```
-./bin/test_line_easy -a # '-a' toggles the autotester
+./bin/cp1_test_line_easy -a # '-a' toggles the autotester
 ```
 At the end, it should produce output indicating whether your implementation passed or failed that particular test-case.
 
 You can also run the same test in 'manual' mode. For the test_line_easy example, you will need three terminal windows open: one for each of the mixnet nodes, and one for the 'orchestrator', which bootstraps the topology, sets up connections, coordinates actions, etc. In general, you will need (n + 1) terminals, where n is the number of mixnet nodes in the test topology. First, start the orchestrator:
 ```
-./bin/test_line_easy # Note that '-a' is missing
+./bin/cp1_test_line_easy # Note that '-a' is missing
 ```
 
 You should see output that looks like this: ```[Orchestrator] Started listening on port 9107 with session nonce 39239```. Note both the port (it's always 9107) the server is running on, as well as the nonce (changes every run). Next, type the following commands in the other two terminals (one in each):
