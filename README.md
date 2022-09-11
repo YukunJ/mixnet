@@ -1,5 +1,7 @@
 # 15-441/15-641 Project 1: Mixnet
 
+Project 1 for the 15-441/641 (Networking and the Internet) course at CMU. **Note**: This is a course project, so DO NOT push your solution to a public fork of this repo.
+
 ## Requirements
 
 This project is designed to run on Linux. It was tested on Ubuntu 20.04.2 LTS, but you may get away by using other distributions.
