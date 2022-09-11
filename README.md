@@ -10,7 +10,7 @@ This project is designed to run on Linux. It was tested on Ubuntu 20.04.2 LTS, b
 
 You need `cmake` and `sctp` to build the project. On Ubuntu, you can install them with:
 ```bash
-sudo apt install cmake libsctp-dev
+sudo apt install build-essential cmake libsctp-dev
 ```
 
 To build the project, in the root directory, run:
