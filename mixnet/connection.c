@@ -63,64 +63,68 @@ int mixnet_recv(void *handle, uint8_t *port, mixnet_packet **packet) {
             bool is_link_enabled = subctx->link_states[
                 subctx->next_port_idx];
 
-            int rc = 0;
-            int flags = 0;
             if (is_link_enabled) {
+                int rc = 0;
+                int flags = 0;
                 rc = sctp_recvmsg(
                     subctx->rx_socket_fds[subctx->next_port_idx],
                     subctx->packet_buffer, MAX_MIXNET_PACKET_SIZE,
                     NULL, 0, NULL, &flags);
-            }
-            pthread_mutex_unlock(mutex); // Release mutex
 
-            if (rc < 0) {
-                if ((errno != EAGAIN) && (errno != ENOBUFS)) {
+                // Release mutex
+                pthread_mutex_unlock(mutex);
+
+                if (rc < 0) {
+                    if ((errno != EAGAIN) && (errno != ENOBUFS)) {
+                        ctx->ts_node.error_code = (
+                            TEST_ERROR_MIXNET_CONNECTION_BROKEN);
+
+                        ctx->ts_node.exited = true;
+                        pthread_exit(NULL);
+                    }
+                }
+                else if (rc == 0) {
                     ctx->ts_node.error_code = (
                         TEST_ERROR_MIXNET_CONNECTION_BROKEN);
 
                     ctx->ts_node.exited = true;
                     pthread_exit(NULL);
                 }
-            }
-            else if (rc == 0) {
-                ctx->ts_node.error_code = (
-                    TEST_ERROR_MIXNET_CONNECTION_BROKEN);
-
-                ctx->ts_node.exited = true;
-                pthread_exit(NULL);
-            }
-            else {
-                // Validate the packet header
-                mixnet_packet *header = (
-                    (mixnet_packet *) subctx->packet_buffer);
-
-                const size_t total_size = (sizeof(mixnet_packet) +
-                                           header->payload_size);
-
-                // We discard packets with size larger than MTU
-                // on the TX side, so this case shouldn't arise
-                // unless something went seriously wrong.
-                if (total_size > MAX_MIXNET_PACKET_SIZE) {
-                    ctx->ts_node.error_code = (
-                        TEST_ERROR_MIXNET_INVALID_PACKET_SIZE);
-
-                    ctx->ts_node.exited = true;
-                    pthread_exit(NULL);
-                }
-                // SCTP transmission is non-atomic
-                else if (rc != (int) total_size) {
-                    ctx->ts_node.error_code = TEST_ERROR_SCTP_PARTIAL_DATA;
-                    ctx->ts_node.exited = true;
-                    pthread_exit(NULL);
-                }
                 else {
-                    // Valid packet
-                    num_recvd++;
-                    *packet = malloc(total_size);
-                    *port = subctx->next_port_idx;
-                    memcpy(*packet, subctx->packet_buffer, total_size);
+                    // Validate the packet header
+                    mixnet_packet *header = (
+                        (mixnet_packet *) subctx->packet_buffer);
+
+                    const size_t total_size = (sizeof(mixnet_packet) +
+                                               header->payload_size);
+
+                    // We discard packets with size larger than MTU
+                    // on the TX side, so this case shouldn't arise
+                    // unless something went seriously wrong.
+                    if (total_size > MAX_MIXNET_PACKET_SIZE) {
+                        ctx->ts_node.error_code = (
+                            TEST_ERROR_MIXNET_INVALID_PACKET_SIZE);
+
+                        ctx->ts_node.exited = true;
+                        pthread_exit(NULL);
+                    }
+                    // SCTP transmission is non-atomic
+                    else if (rc != (int) total_size) {
+                        ctx->ts_node.error_code = TEST_ERROR_SCTP_PARTIAL_DATA;
+                        ctx->ts_node.exited = true;
+                        pthread_exit(NULL);
+                    }
+                    else {
+                        // Valid packet
+                        num_recvd++;
+                        *packet = malloc(total_size);
+                        *port = subctx->next_port_idx;
+                        memcpy(*packet, subctx->packet_buffer, total_size);
+                    }
                 }
             }
+            // Release mutex
+            else { pthread_mutex_unlock(mutex); }
         }
         subctx->next_port_idx = fragment_next_port_idx(
             subctx->next_port_idx, config->num_neighbors);
