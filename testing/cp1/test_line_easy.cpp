@@ -29,6 +29,12 @@ void pcap(orchestrator* orchestrator,
     }
 }
 
+/**
+ * This test-case exercises a simple line topology with 2 Mixnet nodes.
+ * We subscribe to packet updates from one of the nodes, and then send
+ * a single FLOOD packet using the other one as source. We'd expect to
+ * see a single FLOOD packet appear on the user output.
+ */
 void testcase(orchestrator* orchestrator) {
     sleep(5); // Wait for STP convergence
     auto error_code = TEST_ERROR_NONE;

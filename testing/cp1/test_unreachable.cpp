@@ -72,5 +72,6 @@ int main(int argc, char **argv) {
     std::cout << ((retcode == TEST_ERROR_NONE) ?
         "Nodes returned OK" : "Nodes returned error") << std::endl;
 
-    std::cout << ((pcap_count == 0) ? "PASS" : "FAIL") << std::endl;
+    bool success = (pcap_count == 0) && (retcode == TEST_ERROR_NONE);
+    std::cout << (success ? "PASS" : "FAIL") << std::endl;
 }

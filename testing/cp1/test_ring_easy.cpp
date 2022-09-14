@@ -29,12 +29,24 @@ void pcap(orchestrator* orchestrator,
     }
 }
 
+/**
+ * This test-case exercises a simple ring topology with 3 Mixnet nodes.
+ * We subscribe to packet updates from all the nodes, then send a FLOOD
+ * packet using every node as src. We'd expect to see a total of 6 such
+ * packets on the output (two for each source).
+ */
 void testcase(orchestrator* orchestrator) {
     sleep(5); // Wait for STP convergence
     auto error_code = TEST_ERROR_NONE;
-    DIE_ON_ERROR(orchestrator->pcap_change_subscription(1, true));
-    DIE_ON_ERROR(orchestrator->pcap_change_subscription(2, true));
-    DIE_ON_ERROR(orchestrator->send_packet(0, 0, PACKET_TYPE_FLOOD));
+
+    // Get packets from all nodes
+    for (uint16_t i = 0; i < 3; i++) {
+        DIE_ON_ERROR(orchestrator->pcap_change_subscription(i, true));
+    }
+    // Try every node as source
+    for (uint16_t i = 0; i < 3; i++) {
+        DIE_ON_ERROR(orchestrator->send_packet(i, 0, PACKET_TYPE_FLOOD));
+    }
     sleep(5); // Wait for packets to propagate
 }
 
@@ -59,5 +71,5 @@ int main(int argc, char **argv) {
     std::cout << ((retcode == TEST_ERROR_NONE) ?
         "Nodes returned OK" : "Nodes returned error") << std::endl;
 
-    std::cout << ((pcap_count == 2) ? "PASS" : "FAIL") << std::endl;
+    std::cout << ((pcap_count == (3 * 2)) ? "PASS" : "FAIL") << std::endl;
 }

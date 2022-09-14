@@ -29,18 +29,22 @@ void pcap(orchestrator* orchestrator,
     }
 }
 
+/**
+ * This test-case exercises a binary tree topology with 7 Mixnet nodes.
+ * We subscribe to packet updates from all the nodes, then send a FLOOD
+ * packet using the root of the spanning tree as src. We expect to see
+ * 6 FLOOD packets on the output, one for each of the other nodes.
+ */
 void testcase(orchestrator* orchestrator) {
     sleep(5); // Wait for STP convergence
     auto error_code = TEST_ERROR_NONE;
 
     // Get packets from all nodes
-    for (size_t i = 0; i < 7; i++) {
+    for (uint16_t i = 0; i < 7; i++) {
         DIE_ON_ERROR(orchestrator->pcap_change_subscription(i, true));
     }
-    // Try every node as source
-    for (size_t i = 0; i < 7; i++) {
-        DIE_ON_ERROR(orchestrator->send_packet(i, 0, PACKET_TYPE_FLOOD));
-    }
+    // Try the root as source
+    DIE_ON_ERROR(orchestrator->send_packet(2, 0, PACKET_TYPE_FLOOD));
     sleep(5); // Wait for packets to propagate
 }
 
@@ -77,10 +81,10 @@ int main(int argc, char **argv) {
     orchestrator.register_cb_retcode(return_code);
     orchestrator.set_topology(mixaddrs, topology);
 
-    std::cout << "[Test] Starting test_tree..." << std::endl;
+    std::cout << "[Test] Starting test_tree_easy..." << std::endl;
     orchestrator.run();
     std::cout << ((retcode == TEST_ERROR_NONE) ?
         "Nodes returned OK" : "Nodes returned error") << std::endl;
 
-    std::cout << ((pcap_count == (7 * 6)) ? "PASS" : "FAIL") << std::endl;
+    std::cout << ((pcap_count == 6) ? "PASS" : "FAIL") << std::endl;
 }

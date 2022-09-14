@@ -30,23 +30,21 @@ void pcap(orchestrator* orchestrator,
 }
 
 /**
- * This test-case exercises a ring topology with 8 Mixnet nodes. We
- * subscribe to packet updates from every node, then send one FLOOD
- * packet using a subset of nodes as src.
+ * This test-case exercises a fully-connected topology with 4 Mixnet
+ * nodes. We subscribe to packet updates from every node, then send
+ * a few FLOOD packets using the root of the spanning tree as src.
  */
 void testcase(orchestrator* orchestrator) {
     sleep(5); // Wait for STP convergence
     auto error_code = TEST_ERROR_NONE;
 
     // Get packets from all nodes
-    for (uint16_t i = 0; i < 8; i++) {
+    for (uint16_t i = 0; i < 4; i++) {
         DIE_ON_ERROR(orchestrator->pcap_change_subscription(i, true));
     }
-    // Try every other node as source
-    for (uint16_t i = 0; i < 8; i++) {
-        if ((i % 2) == 1) { continue; }
-        DIE_ON_ERROR(orchestrator->send_packet(
-            i, (i % 4), PACKET_TYPE_FLOOD));
+    // Try the root as source several times
+    for (size_t i = 0; i < 4; i++) {
+        DIE_ON_ERROR(orchestrator->send_packet(3, 0, PACKET_TYPE_FLOOD));
     }
     sleep(5); // Wait for packets to propagate
 }
@@ -57,10 +55,10 @@ void return_code(test_error_code_t value) {
 
 int main(int argc, char **argv) {
     std::vector<std::vector<mixnet_address>> topology;
-    create_ring_topology(8, topology);
+    std::vector<mixnet_address> mixaddrs {15, 13, 11, 9};
 
-    std::vector<mixnet_address> mixaddrs {12, 37, 52, 71,
-                                          34, 16, 28, 46};
+    create_fully_connected_topology(4, topology);
+
     orchestrator orchestrator;
     orchestrator.configure(argc, argv);
     orchestrator.register_cb_pcap(pcap);
@@ -68,10 +66,10 @@ int main(int argc, char **argv) {
     orchestrator.register_cb_retcode(return_code);
     orchestrator.set_topology(mixaddrs, topology);
 
-    std::cout << "[Test] Starting test_ring_hard..." << std::endl;
+    std::cout << "[Test] Starting test_full_mesh_easy..." << std::endl;
     orchestrator.run();
     std::cout << ((retcode == TEST_ERROR_NONE) ?
         "Nodes returned OK" : "Nodes returned error") << std::endl;
 
-    std::cout << ((pcap_count == (4 * 7)) ? "PASS" : "FAIL") << std::endl;
+    std::cout << ((pcap_count == (4 * 3)) ? "PASS" : "FAIL") << std::endl;
 }

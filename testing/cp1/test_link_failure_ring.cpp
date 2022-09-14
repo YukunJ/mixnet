@@ -30,23 +30,30 @@ void pcap(orchestrator* orchestrator,
 }
 
 /**
- * This test-case exercises a ring topology with 8 Mixnet nodes. We
- * subscribe to packet updates from every node, then send one FLOOD
- * packet using a subset of nodes as src.
+ * This test-case checks whether nodes can recover
+ * when a random link goes down in a ring network.
  */
 void testcase(orchestrator* orchestrator) {
     sleep(5); // Wait for STP convergence
     auto error_code = TEST_ERROR_NONE;
 
     // Get packets from all nodes
-    for (uint16_t i = 0; i < 8; i++) {
+    for (uint16_t i = 0; i < 5; i++) {
         DIE_ON_ERROR(orchestrator->pcap_change_subscription(i, true));
     }
-    // Try every other node as source
-    for (uint16_t i = 0; i < 8; i++) {
-        if ((i % 2) == 1) { continue; }
-        DIE_ON_ERROR(orchestrator->send_packet(
-            i, (i % 4), PACKET_TYPE_FLOOD));
+    // Inject a few FLOOD packet using the root node as src
+    for (size_t t = 0; t < 7; t++) {
+        DIE_ON_ERROR(orchestrator->send_packet(3, 0, PACKET_TYPE_FLOOD));
+    }
+    sleep(5); // Wait for packets to propagate
+
+    // Disconnect a link in the network, creating a line topology
+    DIE_ON_ERROR(orchestrator->change_link_state(2, 3, false));
+    sleep(5); // Wait for STP re-convergence
+
+    // Inject a few more FLOOD packet using the root node as src
+    for (size_t t = 0; t < 7; t++) {
+        DIE_ON_ERROR(orchestrator->send_packet(3, 0, PACKET_TYPE_FLOOD));
     }
     sleep(5); // Wait for packets to propagate
 }
@@ -56,22 +63,23 @@ void return_code(test_error_code_t value) {
 }
 
 int main(int argc, char **argv) {
+    std::vector<mixnet_address> mixaddrs {13, 14, 15, 4, 21};
     std::vector<std::vector<mixnet_address>> topology;
-    create_ring_topology(8, topology);
+    create_ring_topology(5, topology);
 
-    std::vector<mixnet_address> mixaddrs {12, 37, 52, 71,
-                                          34, 16, 28, 46};
     orchestrator orchestrator;
     orchestrator.configure(argc, argv);
     orchestrator.register_cb_pcap(pcap);
     orchestrator.register_cb_testcase(testcase);
     orchestrator.register_cb_retcode(return_code);
     orchestrator.set_topology(mixaddrs, topology);
+    orchestrator.set_root_hello_interval_ms(100); // 100 ms
+    orchestrator.set_reelection_interval_ms(1000); // 1 second
 
-    std::cout << "[Test] Starting test_ring_hard..." << std::endl;
+    std::cout << "[Test] Starting test_link_failure_ring..." << std::endl;
     orchestrator.run();
     std::cout << ((retcode == TEST_ERROR_NONE) ?
         "Nodes returned OK" : "Nodes returned error") << std::endl;
 
-    std::cout << ((pcap_count == (4 * 7)) ? "PASS" : "FAIL") << std::endl;
+    std::cout << ((pcap_count == (2 * 7 * 4)) ? "PASS" : "FAIL") << std::endl;
 }
