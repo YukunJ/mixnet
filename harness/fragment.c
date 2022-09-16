@@ -354,7 +354,7 @@ fragment_run_state_setup_pcap(struct fragment_context *ctx) {
             sizeof(struct test_message_header))
     );
     pcap_netaddr = payload->pcap_netaddr;
-    pcap_netaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    pcap_netaddr.sin_addr.s_addr = ctx->orc_netaddr.sin_addr.s_addr;
     }
     // Acknowledge pcap overlay setup
     memset(ctx->ctrl_message_buffer, 0, MAX_TEST_MESSAGE_SIZE);
@@ -490,7 +490,7 @@ fragment_run_state_start_mixnet(struct fragment_context *ctx) {
     // Mixnet server address
     struct mixnet_context *subctx = &(ctx->mixnet_ctx);
     subctx->tx_server_netaddr.sin_family = AF_INET;
-    subctx->tx_server_netaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    subctx->tx_server_netaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     struct mixnet_node_config *config = &(subctx->config);
     error_code = harness_server_setup(&(subctx->tx_listen_fd),
@@ -536,6 +536,7 @@ fragment_run_state_start_mixnet(struct fragment_context *ctx) {
                 sizeof(struct test_message_header))
         );
         payload->server_netaddr = subctx->tx_server_netaddr;
+        payload->server_netaddr.sin_addr.s_addr = ((uint32_t) -1);
     }
     error_code = harness_send_with_timeout(
         ctx->local_fd_ctrl, ctx->communication_timeout,
