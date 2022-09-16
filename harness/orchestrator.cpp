@@ -580,7 +580,16 @@ orchestrator::run_state_start_mixnet_server() {
                  (payload->server_netaddr.sin_port == 0)) {
             return TEST_ERROR_FRAGMENT_INVALID_SADDR;
         }
+        struct sockaddr_in baseaddr; // Fragment's base address
+        socklen_t addrlen = sizeof(struct sockaddr_in);
+        if (getpeername(fragments_[idx].fd_ctrl,
+            (struct sockaddr *) &baseaddr, &addrlen) != 0) {
+            return TEST_ERROR_SOCKET_CONNECT_FAILED;
+        }
         fragments_[idx].mixnet_server_netaddr = payload->server_netaddr;
+        fragments_[idx].mixnet_server_netaddr.sin_addr.s_addr = (
+            baseaddr.sin_addr.s_addr);
+
         return TEST_ERROR_NONE;
     };
     // Wait for acknowledgement
