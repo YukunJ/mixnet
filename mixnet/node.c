@@ -93,6 +93,9 @@ mixnet_packet *generate_stp_packet(mixnet_address root_address,
   stp_packet->node_address = self_address;
   // char[] is not assignable
   memcpy(m_packet->payload, (const char *)stp_packet, STP_PACKET_SIZE);
+  // stp 6 bytes info is already copied into payload part of mixnet packet
+  // release the allocated memory from heap
+  free(stp_packet);
   return m_packet;
 }
 
