@@ -82,20 +82,17 @@ mixnet_packet *generate_stp_packet(mixnet_address root_address,
                                    uint16_t path_length,
                                    mixnet_address self_address) {
   mixnet_packet *m_packet = malloc(sizeof(mixnet_packet) + STP_PACKET_SIZE);
-  mixnet_packet_stp *stp_packet = malloc(STP_PACKET_SIZE);
+  mixnet_packet_stp stp_packet;
   // connect the mixnet packet's payload point to stp_packet
   m_packet->type = PACKET_TYPE_STP;
   m_packet->payload_size = STP_PACKET_SIZE;
   m_packet->src_address = 0;  // can be set to arbitrary
   m_packet->dst_address = 0;  // can be set to arbitrary
-  stp_packet->root_address = root_address;
-  stp_packet->path_length = path_length;
-  stp_packet->node_address = self_address;
+  stp_packet.root_address = root_address;
+  stp_packet.path_length = path_length;
+  stp_packet.node_address = self_address;
   // char[] is not assignable
-  memcpy(m_packet->payload, (const char *)stp_packet, STP_PACKET_SIZE);
-  // stp 6 bytes info is already copied into payload part of mixnet packet
-  // release the allocated memory from heap
-  free(stp_packet);
+  memcpy(m_packet->payload, (const char *)&stp_packet, STP_PACKET_SIZE);
   return m_packet;
 }
 
