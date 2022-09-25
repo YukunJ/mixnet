@@ -113,6 +113,23 @@ mixnet_packet *generate_flood_packet() {
 }
 
 /**
+ * @brief wrapper function for mixnet_send
+ *        will keep retry if buffer queue is full and return 0
+ *        but error code -1 will be returned and not re-tried
+ * @param handle handle
+ * @param port the port to send out
+ * @param packet pointer to a mixnet_packet
+ * @return mixnet_send status code
+ */
+int send(void *handle, const uint8_t port, mixnet_packet *packet) {
+    int signal = 0;
+    do {
+        signal = mixnet_send(handle, port, packet);
+    } while (signal == 0);
+    return signal;
+}
+
+/**
  * Broadcast the STP triple to every neighbor
  * @param handle void * handler for control
  * @param config_ptr pointer to node config
@@ -129,7 +146,7 @@ void broadcast_stp(void *handle, const struct mixnet_node_config *config_ptr,
   for (uint16_t i = 0; i < num_neighbors; i++) {
     mixnet_packet *packet =
         generate_stp_packet(root_address, path_length, self_address);
-    if (mixnet_send(handle, i, packet) == -1) {
+    if (send(handle, i, packet) == -1) {
       free(packet);
     }
   }
@@ -151,14 +168,14 @@ void broadcast_flood(void *handle, const struct mixnet_node_config *config_ptr,
       continue;
     }
     mixnet_packet *packet = generate_flood_packet();
-    if (mixnet_send(handle, i, packet) == -1) {
+    if (send(handle, i, packet) == -1) {
       free(packet);
     }
   }
   if (source_port != num_neighbors) {
     // not a user-init flood packet, send back to user
     mixnet_packet *packet = generate_flood_packet();
-    if (mixnet_send(handle, num_neighbors, packet) == -1) {
+    if (send(handle, num_neighbors, packet) == -1) {
       free(packet);
     }
   }
@@ -265,7 +282,7 @@ void run_node(void *handle, volatile bool *keep_running,
           if (config.neighbor_addrs[nid] == packet->dst_address) {
             // mixnet_send(handle, nid, packet);
             // Ought to check if send() returns -1!
-            success = mixnet_send(handle, nid, packet) != -1;
+            success = send(handle, nid, packet) != -1;
           }
         }
         // STP packet
