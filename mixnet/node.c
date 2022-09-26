@@ -9,7 +9,7 @@
  * without the express permission of the 15-441/641 course staff.
  */
 #include "node.h"
-
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
