@@ -163,6 +163,7 @@ bool vec_remove_by_index(vector_t *vec, int64_t idx) {
         // the index is not within correct range
         return false;
     }
+    free(vec->data[idx]);
     for (int64_t i = idx; i < vec->size-1; i++) {
         // shift right hand by one index to the left
         vec->data[i] = vec->data[i+1];
