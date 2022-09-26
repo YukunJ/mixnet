@@ -44,7 +44,7 @@ typedef struct vector {
  */
 vector_t *create_vector() {
     vector_t *new_vector = (vector_t *)malloc(sizeof(vector_t));
-    new_vector->data = calloc(INITIAL_CAPACITY, sizeof(ELEMENT_TYPE));
+    new_vector->data = (void **)calloc(INITIAL_CAPACITY, sizeof(ELEMENT_TYPE));
     new_vector->size = 0;
     new_vector->capacity = INITIAL_CAPACITY;
     return new_vector;
@@ -70,7 +70,7 @@ void free_vector(vector_t *vec) {
  */
 static void vec_expand(vector_t *vec) {
     ELEMENT_TYPE *old_data = vec->data;
-    ELEMENT_TYPE *new_data = calloc(MUL_FACTOR * vec->capacity, sizeof(ELEMENT_TYPE));
+    ELEMENT_TYPE *new_data = (void **)calloc(MUL_FACTOR * vec->capacity, sizeof(ELEMENT_TYPE));
     memcpy(new_data, vec->data, sizeof(ELEMENT_TYPE) * vec->capacity);
     vec->capacity *= MUL_FACTOR;
     vec->data = new_data;
@@ -184,7 +184,7 @@ void vec_clear(vector_t *vec) {
             free(vec->data[i]);
         }
         free(vec->data);
-        vec->data = calloc(INITIAL_CAPACITY, sizeof(ELEMENT_TYPE));
+        vec->data = (void **)calloc(INITIAL_CAPACITY, sizeof(ELEMENT_TYPE));
         vec->size = 0;
         vec->capacity = INITIAL_CAPACITY;
     }
@@ -201,5 +201,104 @@ void vec_print(vector_t *vec, void (element_printer)(ELEMENT_TYPE)) {
         (*element_printer)(vec->data[i]);
     }
     printf("\n");
+}
+
+// ======================= graph node ======================= //
+/*
+ * the graph node holds an entry in the graph
+ * with one host and a vector of its neighbors
+ * you can think of it as a pair of <host_id, vector of neighbor id>
+ *
+ * the graph node itself forms a structure of singly linked list
+ * that will be manipulated by outside graph structure
+ *
+ * For our specific usage, we expect the host and element in the vector
+ * to be of same type implicitly
+ */
+typedef struct graph_node {
+    ELEMENT_TYPE host;
+    vector_t *neighbors;
+    struct graph_node *next;
+} graph_node_t;
+
+/**
+ * Create a graph node with the host identifier
+ * @param host a pointer to the host identifier
+ * @return pointer to the newly created graph node
+ */
+graph_node_t *create_graph_node(ELEMENT_TYPE host) {
+    graph_node_t* node = (graph_node_t *)malloc(sizeof(graph_node_t));
+    node->host = host;
+    node->neighbors = create_vector();
+    node->next = NULL;
+    return node;
+}
+
+/**
+ * Release the dynamically-allocated memory for graph
+ * including its host identifier and
+ * @param node pointer to a graph node
+ */
+void free_graph_node(graph_node_t *node) {
+    if (node) {
+        free(node->host);
+        free_vector(node->neighbors);
+        node->next = NULL;
+        free(node);
+    }
+}
+
+/**
+ * Get the size of how many neighbors this graph node is holding
+ * @param node pointer to a graph node
+ * @return count of how many neighbors
+ */
+int64_t graph_node_size(graph_node_t *node) {
+    return vec_size(node->neighbors);
+}
+
+/**
+ * Try to add a neighbor into this graph node if not exists yet
+ * @param node pointer to a graph node
+ * @param new_neighbor pointer to a new neighbor's host identifier
+ * @param equal_comp function pointer to a func if two neighbors are the same, true if the same
+ * @return true if the addition is successful, false if already exists
+ */
+bool graph_node_add_neighbor(graph_node_t *node, ELEMENT_TYPE new_neighbor, bool (*equal_comp)(ELEMENT_TYPE, ELEMENT_TYPE)) {
+    for (int64_t i = 0; i < node->neighbors->size; i++) {
+        if ((*equal_comp)(new_neighbor, node->neighbors->data[i])) {
+            return false;
+        }
+    }
+    vec_push_back(node->neighbors, new_neighbor);
+    return true;
+}
+
+/**
+ * Clear a graph node by removing all the existing neighbors
+ * @param node pointer to a graph node
+ */
+void graph_node_clear(graph_node_t *node) {
+    if (node) {
+        vec_clear(node->neighbors);
+    }
+}
+
+/**
+ * Print out the graph node with the provided printer
+ * the printer is applied both to the host and its each neighbor
+ * @param node pointer to a graph node
+ * @param printer function node to print out an individual element
+ */
+void graph_node_print(graph_node_t *node, void (*printer)(ELEMENT_TYPE)) {
+    if (node) {
+        printf("Graph node: host = ");
+        (*printer)(node->host);
+        printf(" has the following neighbors:\n");
+        for (int64_t i = 0; i < node->neighbors->size; i++) {
+            (*printer)(node->neighbors->data[i]);
+        }
+        printf("\n");
+    }
 }
 #endif //MIXNET_UTILS_H
