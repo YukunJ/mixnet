@@ -20,9 +20,11 @@
 /** the multiplicative factor when resizing the vector */
 #define MUL_FACTOR 2
 
-/** the default element type is void *, so it could generically handle any data type */
+/** the default element type for vector is void *, so it could generically handle any data type */
 #define ELEMENT_TYPE void *
 
+
+// ======================== vector ========================= //
 /*
  * the dynamic expanding vector
  * NOT thread-safe be careful
@@ -170,6 +172,22 @@ bool vec_remove_by_index(vector_t *vec, int64_t idx) {
     }
     vec->size--;
     return true;
+}
+
+/**
+ * Clear out the data in vec and reset to default state
+ * @param vec pointer to a vector
+ */
+void vec_clear(vector_t *vec) {
+    if (vec) {
+        for (int64_t i = 0; i < vec->size; i++) {
+            free(vec->data[i]);
+        }
+        free(vec->data);
+        vec->data = calloc(INITIAL_CAPACITY, sizeof(ELEMENT_TYPE));
+        vec->size = 0;
+        vec->capacity = INITIAL_CAPACITY;
+    }
 }
 
 /**
