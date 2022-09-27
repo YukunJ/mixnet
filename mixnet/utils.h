@@ -90,7 +90,7 @@ int64_t vec_size(vector_t *vec) {
  * Get the idx-th element in the vector
  * @param vec pointer to a vector
  * @param idx the index to be retrieved
- * @return the element, or NULL if the index is inappropriate
+ * @return the element (a pointer type), or NULL if the index is inappropriate
  */
 ELEMENT_TYPE vec_get(vector_t *vec, int64_t idx) {
     if (idx < 0 || idx >= vec->size) {
@@ -294,11 +294,122 @@ void graph_node_print(graph_node_t *node, void (*printer)(ELEMENT_TYPE)) {
     if (node) {
         printf("Graph node: host = ");
         (*printer)(node->host);
-        printf(" has the following neighbors:\n");
+        printf(" has the following neighbors: [");
         for (int64_t i = 0; i < node->neighbors->size; i++) {
             (*printer)(node->neighbors->data[i]);
         }
-        printf("\n");
+        printf("]\n");
     }
 }
+
+// ======================== graph  ======================== //
+
+/*
+ * the graph data structure using adjacent list representation
+ * it contains a single linked list of graph node, each node represent one host
+ * such node contains a vector of that host's neighbor
+ * this graph has a sentinel dummy header, i.e. the first node is always dummy
+ * and it needs a equal_comparator when adding new neighbors into this graph
+ */
+typedef struct graph {
+    graph_node_t *head;
+    bool (*equal_comp)(ELEMENT_TYPE, ELEMENT_TYPE);
+} graph_t;
+
+/**
+ * Create a graph data structure
+ * @param equal_comp function pointer for testing if two elements are the same
+ * @return pointer to a newly created graph
+ */
+graph_t *create_graph(bool (*equal_comp)(ELEMENT_TYPE, ELEMENT_TYPE)) {
+    graph_t *graph = (graph_t *)malloc(sizeof(graph));
+    graph->head = create_graph_node(NULL);
+    graph->equal_comp = equal_comp;
+    return graph;
+}
+
+/**
+ * Release the dynamically allocated memory for the graph data structure
+ * @param graph pointer to a graph
+ */
+void free_graph(graph_t *graph) {
+    if (graph) {
+        graph_node_t *next;
+        graph_node_t *curr = graph->head;
+        while (curr) {
+            next = curr->next;
+            free_graph_node(curr);
+            curr = next;
+        }
+        free(graph);
+    }
+}
+
+/**
+ * Find a vertex in the graph specified by its host identifier
+ * @param graph pointer to a graph
+ * @param vertex_host pointer to a vertex host identifier
+ * @return pointer to graph_node if found, NULL if not exist in the graph
+ */
+graph_node_t *graph_find_vertex(graph_t *graph, ELEMENT_TYPE vertex_host) {
+    graph_node_t *curr = graph->head->next;
+    while (curr) {
+        if ((*graph->equal_comp)(curr->host, vertex_host)) {
+            return curr;
+        }
+        curr = curr->next;
+    }
+    return NULL;
+}
+
+/**
+ * Add a new vertex to the end of the linked list of this graph
+ * caller should make sure that there is no existing vertex of this host identifier in the graph
+ * @param graph pointer to a graph
+ * @param vertex_host pointer to a vertex host identifier
+ * @return pointer to the newly added vertex graph node
+ */
+graph_node_t *graph_add_vertex(graph_t *graph, ELEMENT_TYPE vertex_host) {
+    graph_node_t *new_node = create_graph_node(vertex_host);
+    graph_node_t *prev = graph->head;
+    graph_node_t *curr = graph->head->next;
+    while (curr) {
+        prev = curr;
+        curr = curr->next;
+    }
+    prev->next = new_node;
+    return new_node;
+}
+
+/**
+ * Try to add an edge with host's new neighbor into the graph
+ * @param graph pointer to a graph
+ * @param host pointer to a vertex host identifier
+ * @param neighbor pointer to a neighbor identifier
+ * @attention each neighbor must exclusively have their heap space
+ * i.e. you cannot insert twice without allocate a new space with same value
+ * @return true if the addition is successfully, false if already exists
+ */
+bool graph_add_edge(graph_t *graph, ELEMENT_TYPE host, ELEMENT_TYPE neighbor) {
+    graph_node_t *vertex = graph_find_vertex(graph, host);
+    if (!vertex) {
+        vertex = graph_add_vertex(graph, host);
+    }
+    return graph_node_add_neighbor(vertex, neighbor, graph->equal_comp);
+}
+
+/**
+ * Print out the whole graph structure using the provided printer function
+ * @param graph pointer to a graph
+ * @param printer function printer to print each individual element
+ */
+void graph_print(graph_t *graph, void (*printer)(ELEMENT_TYPE)) {
+    printf("The graph consists of the following vertex:\n");
+    graph_node_t *curr = graph->head->next;
+    while (curr) {
+        graph_node_print(curr, printer);
+        curr = curr->next;
+    }
+}
+
 #endif //MIXNET_UTILS_H

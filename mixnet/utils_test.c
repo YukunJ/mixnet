@@ -21,7 +21,18 @@ void mixnet_address_printer(ELEMENT_TYPE e) {
     printf("%hu ", *(mixnet_address *)e);
 }
 
-int main() {
+void graph_insert_helper(graph_t *graph, mixnet_address host, mixnet_address neighbor) {
+    mixnet_address *host_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
+    mixnet_address *neighbor_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
+    *host_ptr = host;
+    *neighbor_ptr = neighbor;
+    if (!graph_add_edge(graph, host_ptr, neighbor_ptr)) {
+        free(host_ptr);
+        free(neighbor_ptr);
+    }
+}
+
+int main(int argc, const char** argv) {
     printf("[A]. Start testing the implementation of dynamically-expanding vector\n");
     vector_t *vec = create_vector();
     printf("1. Inserting 0 to 99 into the vector...\n");
@@ -103,5 +114,35 @@ int main() {
     free_graph_node(node);
     printf("All graph_node tests passed. graph node freed\n");
     printf("===========================================================\n");
+
+    printf("[C]. Start testing the implementation of graph node relying on graph_node\n");
+    graph_t *graph = create_graph(mixnet_address_equal);
+    printf("1. create a graph such that\n");
+    printf("host 1 has neighbor 3, 4\n");
+    printf("host 2 has neighbor 1\n");
+    printf("host 3 has neighbor 4, 5\n");
+    printf("host 4 has neighbor 2\n");
+    printf("host 5 has neighbor 4, 6\n");
+    printf("host 6 has neighbor 5\n");
+    for (int i = 0; i < 3; i++) {
+        // duplicate insert
+        graph_insert_helper(graph, 1, 3);
+        graph_insert_helper(graph, 1, 4);
+        graph_insert_helper(graph, 2, 1);
+        graph_insert_helper(graph, 3, 4);
+        graph_insert_helper(graph, 3, 5);
+        graph_insert_helper(graph, 4, 2);
+        graph_insert_helper(graph, 5, 4);
+        graph_insert_helper(graph, 5, 6);
+        graph_insert_helper(graph, 6, 5);
+    }
+    printf("We print out the graph to see if it looks as expected:\n");
+    graph_print(graph, mixnet_address_printer);
+    printf("If the graph looks as you expect, then the test is considered passed!\n");
+
+    free_graph(graph);
+    printf("All graph tests passed. graph freed\n");
+    printf("===========================================================\n");
+
     return 0;
 }
