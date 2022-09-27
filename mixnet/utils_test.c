@@ -26,10 +26,6 @@ void graph_insert_helper(graph_t *graph, mixnet_address host, mixnet_address nei
     mixnet_address *neighbor_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
     *host_ptr = host;
     *neighbor_ptr = neighbor;
-    if (!graph_add_edge(graph, host_ptr, neighbor_ptr)) {
-        free(host_ptr);
-        free(neighbor_ptr);
-    }
 }
 
 int main(int argc, const char** argv) {
@@ -98,7 +94,6 @@ int main(int argc, const char** argv) {
         mixnet_address *i_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
         *i_ptr = i;
         assert(graph_node_add_neighbor(node, i_ptr, mixnet_address_equal) == false);
-        free(i_ptr);
     }
     assert(graph_node_size(node) == 5);
     printf("graph node's addition of neighbor can handle duplicates correctly\n");
