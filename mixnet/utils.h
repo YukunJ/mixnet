@@ -2,6 +2,8 @@
  * utils.h
  * This is the utility file for CP2 to support Linked-State-Routing-Protocol
  * It contains a dynamically-expanding vector which supports basic vector operation
+ * and a graph_node which is essentially a linked list node containing a vector of neighbors
+ * and a graph data structure for storing the neighbors of each node in the graph
  * and a simplified version of Dijkstra's algorithm for source routing
  * @author Yukun Jiang & Leo Guo
  * @date Sep 25 2022
@@ -267,6 +269,7 @@ int64_t graph_node_size(graph_node_t *node) {
 bool graph_node_add_neighbor(graph_node_t *node, ELEMENT_TYPE new_neighbor, bool (*equal_comp)(ELEMENT_TYPE, ELEMENT_TYPE)) {
     for (int64_t i = 0; i < node->neighbors->size; i++) {
         if ((*equal_comp)(new_neighbor, node->neighbors->data[i])) {
+            free(new_neighbor);
             return false;
         }
     }
@@ -394,6 +397,8 @@ bool graph_add_edge(graph_t *graph, ELEMENT_TYPE host, ELEMENT_TYPE neighbor) {
     graph_node_t *vertex = graph_find_vertex(graph, host);
     if (!vertex) {
         vertex = graph_add_vertex(graph, host);
+    } else {
+        free(host);
     }
     return graph_node_add_neighbor(vertex, neighbor, graph->equal_comp);
 }
