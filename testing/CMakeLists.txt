@@ -11,3 +11,4 @@ include_directories(.)
 
 # Test sources
 add_subdirectory(cp1)
+add_subdirectory(cp2)

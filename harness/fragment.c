@@ -1125,6 +1125,7 @@ test_error_code_t fragment_testcase_send_packet(
     if (packet == NULL) { return TEST_ERROR_FRAGMENT_EXCEPTION; }
 
     // Update the header fields
+    packet->payload_size = 0;
     packet->type = metadata->type;
     packet->src_address = metadata->src_mixaddr;
     packet->dst_address = metadata->dst_mixaddr;
@@ -1141,9 +1142,6 @@ test_error_code_t fragment_testcase_send_packet(
             memcpy(header->route, metadata->data, metadata->data_size);
         }
     }
-    packet->payload_size =
-        (packet->type == PACKET_TYPE_DATA) ?
-        (MAX_MIXNET_PACKET_SIZE - sizeof(mixnet_packet)) : 0;
 
     message_queue_write(&(ctx->mq_app_packets), (void*) packet);
     return TEST_ERROR_NONE;
