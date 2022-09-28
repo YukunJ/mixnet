@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 #ifndef MIXNET_UTILS_H
 #define MIXNET_UTILS_H
 
@@ -173,6 +174,23 @@ bool vec_remove_by_index(vector_t *vec, int64_t idx) {
         vec->data[i] = vec->data[i+1];
     }
     vec->size--;
+    return true;
+}
+
+/**
+ * Replace the vector's element at a specific index by a new one
+ * @param vec pointer to a vector
+ * @param idx the index of the element to be replaced
+ * @param new_element pointer to a new element
+ * @return true if such replacement is successfully
+ */
+bool vec_replace_by_index(vector_t *vec, int64_t idx, ELEMENT_TYPE new_element) {
+    if (idx < 0 || idx >= vec->size) {
+        // the index is not within correct range
+        return false;
+    }
+    free(vec->data[idx]);
+    vec->data[idx] = new_element;
     return true;
 }
 
@@ -415,6 +433,142 @@ void graph_print(graph_t *graph, void (*printer)(ELEMENT_TYPE)) {
         graph_node_print(curr, printer);
         curr = curr->next;
     }
+}
+
+// ======================== MixNet specific  ======================== //
+
+#define INFINITY (INT64_MAX / 2)
+
+/*
+ * the dijkstra_triple helps to maintain the computation result during
+ * Dijkstra's shortest path algrithm by tracking both the current
+ * distance to a node, but also it's last hop
+ * so that we may reconstruct the whole path later on
+ */
+typedef struct dijkstra_triple {
+    mixnet_address destination;
+    mixnet_address last_hop;
+    int64_t distance;
+} dijkstra_t;
+
+/**
+ * Helper function to allcate a dijkstra triple with given paramter
+ */
+dijkstra_t *create_dijkstra_triple(mixnet_address destination, mixnet_address last_hop, int64_t distance) {
+    dijkstra_t *triple = (dijkstra_t *)malloc(sizeof(dijkstra_t));
+    triple->destination = destination;
+    triple->last_hop = last_hop;
+    triple->distance = distance;
+    return triple;
+}
+
+/**
+ * Function comparator to test against if two dijkstra_triple are the same
+ * key on the destination, the rhs is just a plain pointer to mixnet_address
+ * while lhs is a full dijkstra_triple
+ */
+bool dijkstra_triple_equal(ELEMENT_TYPE lhs, ELEMENT_TYPE rhs) {
+    return ((dijkstra_t *)lhs)->destination == (*(mixnet_address *)rhs);
+}
+
+/**
+ * Fetching the smallest distance triple
+ * return true if left hand side is better
+ * if distance equal prefer lower indexed destination
+ */
+bool dijkstra_triple_better(ELEMENT_TYPE lhs, ELEMENT_TYPE rhs) {
+    dijkstra_t *lhs_t = (dijkstra_t *)lhs;
+    dijkstra_t *rhs_t = (dijkstra_t *)rhs;
+    if (lhs_t->distance != rhs_t->distance) {
+        return lhs_t->distance < rhs_t->distance;
+    } else {
+        return lhs_t->destination < rhs_t->destination;
+    }
+}
+
+/**
+ * Function comparator to test against if two mixnet address pointer are the same
+ */
+bool mixnet_address_equal(ELEMENT_TYPE lhs, ELEMENT_TYPE rhs) {
+    return *((mixnet_address *)lhs) == *((mixnet_address *)rhs);
+}
+
+/**
+ * Helper function to add an edge <host, neighbor> into the graph
+ * the graph will manage the lifecycle of the dynamically allocated space
+ * @param graph pointer to a graph
+ * @param host mixnet address of the host
+ * @param neighbor mixnet address of the neighbor
+ * @return true if addition is successful, false if already exists
+ */
+bool mixnet_add_neighbor(graph_t *graph, mixnet_address host, mixnet_address neighbor) {
+    mixnet_address *host_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
+    mixnet_address *neighbor_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
+    *host_ptr = host;
+    *neighbor_ptr = neighbor;
+    return graph_add_edge(graph, host_ptr, neighbor_ptr);
+}
+
+/**
+ * The point-to-point shortest path algorithm
+ * @param graph pointer to a graph
+ * @param source source node
+ * @param destination destination node
+ * @return pointer to a vector containing result triples, user should free it after usage by 'free_vector()'
+ */
+vector_t *dijkstra_shortest_path(graph_t *graph, mixnet_address source, mixnet_address destination) {
+    // first create container for results and in-progress triple
+    vector_t *finished = create_vector();
+    vector_t *progress = create_vector();
+
+    // add each **unique node** to the progress "priority queue"
+    vec_push_back(progress, create_dijkstra_triple(source,source, 0)); // source node is 0 distance
+    graph_node_t *curr = graph->head->next;
+    while (curr) {
+        // add a new node if it's unique
+        if (vec_find(progress, curr->host, dijkstra_triple_equal) == -1) {
+            vec_push_back(progress, create_dijkstra_triple(*(mixnet_address *)(curr->host), *(mixnet_address *)(curr->host), INFINITY));
+        }
+        for (int64_t i = 0; i < graph_node_size(curr); i++) {
+            mixnet_address *neighbor_ptr = vec_get(curr->neighbors, i);
+            if (vec_find(progress, neighbor_ptr, dijkstra_triple_equal) == -1) {
+                vec_push_back(progress, create_dijkstra_triple(*neighbor_ptr, *neighbor_ptr, INFINITY));
+            }
+        }
+        curr = curr->next;
+    }
+
+    // fetch smallest distance node each time, and try update neighbor-reaching distance accordingly
+    while (vec_size(progress) > 0) {
+        // find the smallest distance triple
+        int64_t smallest_idx = vec_find_best(progress, dijkstra_triple_better);
+        assert(smallest_idx != -1);
+        dijkstra_t *smallest_triple = vec_get(progress, smallest_idx);
+        mixnet_address curr_destination = smallest_triple->destination;
+        mixnet_address curr_last_hop = smallest_triple->last_hop;
+        int64_t curr_dist = smallest_triple->distance;
+        // mark this destination as finished
+        vec_push_back(finished, create_dijkstra_triple(curr_destination, curr_last_hop, curr_dist));
+        // grab all the neighbors and try update, each hop is 1 distance by assumption
+        graph_node_t *node = graph_find_vertex(graph, &curr_destination);
+        assert(node != NULL);
+        for (int64_t i = 0; i < graph_node_size(node); i++) {
+            void *neighbor = vec_get(node->neighbors, i);
+            int64_t neighbor_idx = vec_find(progress, neighbor, dijkstra_triple_equal);
+            if (neighbor_idx != -1) {
+                // this neighbor is not yet finished, might be able to update distance
+                dijkstra_t *neighbor_triple = vec_get(progress, neighbor_idx);
+                if (1 + curr_dist < neighbor_triple->distance) {
+                    // make a new triple to replace the old position
+                    dijkstra_t *new_triple = create_dijkstra_triple(neighbor_triple->destination, curr_destination, 1 + curr_dist);
+                    vec_replace_by_index(progress, neighbor_idx, new_triple);
+                }
+            }
+        }
+        // remove the fetched-out triple from progress vector
+        vec_remove_by_index(progress, smallest_idx);
+    }
+    return finished;
 }
 
 #endif //MIXNET_UTILS_H
