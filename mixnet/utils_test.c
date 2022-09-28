@@ -13,9 +13,6 @@ void int_printer(ELEMENT_TYPE e) {
     printf("%d ", *(int *)e);
 }
 
-bool mixnet_address_equal(ELEMENT_TYPE lhs, ELEMENT_TYPE rhs) {
-    return *((mixnet_address *)lhs) == *((mixnet_address *)rhs);
-}
 
 void mixnet_address_printer(ELEMENT_TYPE e) {
     printf("%hu ", *(mixnet_address *)e);
@@ -26,6 +23,7 @@ void graph_insert_helper(graph_t *graph, mixnet_address host, mixnet_address nei
     mixnet_address *neighbor_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
     *host_ptr = host;
     *neighbor_ptr = neighbor;
+    graph_add_edge(graph, host_ptr, neighbor_ptr);
 }
 
 int main(int argc, const char** argv) {
@@ -135,9 +133,20 @@ int main(int argc, const char** argv) {
     graph_print(graph, mixnet_address_printer);
     printf("If the graph looks as you expect, then the test is considered passed!\n");
 
-    free_graph(graph);
-    printf("All graph tests passed. graph freed\n");
+    printf("All graph tests passed.\n");
     printf("===========================================================\n");
 
+    printf("[D]. Start testing the implementation of Dijkstra's shortest path algorithm on last graph\n");
+    printf("1. We Try to find path from 1 to 6:\n");
+    vector_t *result = dijkstra_shortest_path(graph, 1, 6);
+    for (int64_t i = 0; i < vec_size(result); i++) {
+        dijkstra_t *triple = vec_get(result, i);
+        printf("To Destination %hu, with Last-hop %hu, of shortest distance %lld\n", triple->destination, triple->last_hop, triple->distance);
+    }
+    printf("If the above distance information looks as you expect, then the test is considered passed!\n");
+    free_vector(result);
+    free_graph(graph);
+    printf("All available tests passed.\n");
+    printf("===========================================================\n");
     return 0;
 }
