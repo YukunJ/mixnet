@@ -40,7 +40,7 @@ void pcap(orchestrator* orchestrator,
                 rh, expected_route_req.data(), 6);
         }
         else if (header->fragment_id == 0) {
-            pcap_check_success &= (src_idx == 6);
+            pcap_check_success &= (src_idx == 7);
             pcap_check_success &= check_route(
                 rh, expected_route_rsp.data(), 6);
         }
