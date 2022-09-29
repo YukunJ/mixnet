@@ -137,13 +137,21 @@ int main(int argc, const char** argv) {
     printf("===========================================================\n");
 
     printf("[D]. Start testing the implementation of Dijkstra's shortest path algorithm on last graph\n");
-    printf("1. We Try to find path from 1 to 6:\n");
-    vector_t *result = dijkstra_shortest_path(graph, 1, 6);
+    printf("1. We Try to find shortest path to other nodes from 1\n");
+    vector_t *result = dijkstra_shortest_path(graph, 1);
     for (int64_t i = 0; i < vec_size(result); i++) {
         dijkstra_t *triple = vec_get(result, i);
         printf("To Destination %hu, with Last-hop %hu, of shortest distance %lld\n", triple->destination, triple->last_hop, triple->distance);
     }
     printf("If the above distance information looks as you expect, then the test is considered passed!\n");
+
+    printf("2. Given the Dijkstra's triple, we try to reconstruct the whole shortest path\n");
+    for (int64_t i = 2; i <= vec_size(result); i++) {
+        vector_t *shortest_path = construct_path(result, 1, i);
+        printf("The shortest path from %d to %lld is: ", 1, i);
+        vec_print(shortest_path, mixnet_address_printer);
+    }
+    printf("If the above shortest path looks as you expect, then the test is considered passed!\n");
     free_vector(result);
     free_graph(graph);
     printf("All available tests passed.\n");

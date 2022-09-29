@@ -110,12 +110,28 @@ ELEMENT_TYPE vec_get(vector_t *vec, int64_t idx) {
  * @param vec pointer to a vector
  * @param e the element to be inserted
  */
-void vec_push_back(vector_t *vec, void *e) {
+void vec_push_back(vector_t *vec, ELEMENT_TYPE e) {
     if (vec->size == vec->capacity) {
         vec_expand(vec);
     }
     vec->data[vec->size] = e;
     vec->size++;
+}
+
+/**
+ * Reverse the order of elements in the vector
+ * @param vec pointer to a vector
+ */
+void vec_reverse(vector_t *vec) {
+    int64_t left = 0, right = vec->size-1;
+    ELEMENT_TYPE temp;
+    while (left < right) {
+        temp = vec->data[left];
+        vec->data[left] = vec->data[right];
+        vec->data[right] = temp;
+        left++;
+        right--;
+    }
 }
 
 /**
@@ -127,7 +143,7 @@ void vec_push_back(vector_t *vec, void *e) {
  * @return the index of best element in this vector, or -1 indicates problem
  */
 int64_t vec_find_best(vector_t *vec, bool (*comp)(ELEMENT_TYPE, ELEMENT_TYPE)) {
-    if (!vec_size(vec)) {
+    if (!vec->size) {
         return -1;
     }
     int64_t best_index = 0;
@@ -513,10 +529,9 @@ bool mixnet_add_neighbor(graph_t *graph, mixnet_address host, mixnet_address nei
  * The point-to-point shortest path algorithm
  * @param graph pointer to a graph
  * @param source source node
- * @param destination destination node
  * @return pointer to a vector containing result triples, user should free it after usage by 'free_vector()'
  */
-vector_t *dijkstra_shortest_path(graph_t *graph, mixnet_address source, mixnet_address destination) {
+vector_t *dijkstra_shortest_path(graph_t *graph, mixnet_address source) {
     // first create container for results and in-progress triple
     vector_t *finished = create_vector();
     vector_t *progress = create_vector();
@@ -569,6 +584,31 @@ vector_t *dijkstra_shortest_path(graph_t *graph, mixnet_address source, mixnet_a
         vec_remove_by_index(progress, smallest_idx);
     }
     return finished;
+}
+
+/**
+ * Construct the shortest path from source to destination according to Dijkstra's result
+ * @param dijkstra_shortest_triple vector of dijkstra calculation triples
+ * @param source source mixnet address
+ * @param destination destination mixnet address
+ * @return pointer to a vector of shortest path
+ */
+vector_t *construct_path(vector_t *dijkstra_shortest_triple, mixnet_address source, mixnet_address destination) {
+    vector_t *path = create_vector();
+    mixnet_address to_find = destination;
+    while (to_find != source) {
+        int64_t idx = vec_find(dijkstra_shortest_triple, &to_find, dijkstra_triple_equal);
+        assert(idx != -1);
+        mixnet_address *curr_hop = (mixnet_address *)malloc(sizeof(mixnet_address));
+        *curr_hop = ((dijkstra_t *)vec_get(dijkstra_shortest_triple, idx))->destination;
+        vec_push_back(path, curr_hop);
+        to_find = ((dijkstra_t *)vec_get(dijkstra_shortest_triple, idx))->last_hop;
+    }
+    mixnet_address *source_cpy = (mixnet_address *)malloc(sizeof(mixnet_address));
+    *source_cpy = source;
+    vec_push_back(path, source_cpy);
+    vec_reverse(path); // going from source to destination
+    return path;
 }
 
 #endif //MIXNET_UTILS_H
