@@ -119,6 +119,9 @@ int main(int argc, char **argv) {
     orchestrator.register_cb_retcode(return_code);
     orchestrator.set_topology(mixaddrs, topology);
 
+    // Enable random routing for the source node
+    orchestrator.set_use_random_routing(0, true);
+
     std::cout << "[Test] Starting test_random_data..." << std::endl;
     orchestrator.run();
     std::cout << ((retcode == TEST_ERROR_NONE) ?
