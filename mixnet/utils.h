@@ -277,7 +277,10 @@ graph_node_t *create_graph_node(ELEMENT_TYPE host) {
  */
 void free_graph_node(graph_node_t *node) {
     if (node) {
-        free(node->host);
+        if (node->host != NULL) {
+            // sentinel head's host is NULL
+            free(node->host);
+        }
         free_vector(node->neighbors);
         node->next = NULL;
         free(node);
