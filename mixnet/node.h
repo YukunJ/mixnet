@@ -11,13 +11,12 @@
 #ifndef MIXNET_NODE_H
 #define MIXNET_NODE_H
 
+#include <stdbool.h>
+
 #include "address.h"
 #include "config.h"
 
-#include <stdbool.h>
-
-void run_node(void *handle,
-              volatile bool *keep_running,
+void run_node(void *handle, volatile bool *keep_running,
               const struct mixnet_node_config config);
 
-#endif // MIXNET_NODE_H
+#endif  // MIXNET_NODE_H
