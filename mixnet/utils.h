@@ -513,6 +513,13 @@ bool mixnet_address_equal(ELEMENT_TYPE lhs, ELEMENT_TYPE rhs) {
 }
 
 /**
+ * Function pointer to print out a mixnet address
+ */
+void mixnet_address_printer(ELEMENT_TYPE e) {
+    printf("%hu ", *(mixnet_address *)e);
+}
+
+/**
  * Helper function to add an edge <host, neighbor> into the graph
  * the graph will manage the lifecycle of the dynamically allocated space
  * @param graph pointer to a graph

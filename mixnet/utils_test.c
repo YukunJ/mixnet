@@ -13,11 +13,6 @@ void int_printer(ELEMENT_TYPE e) {
     printf("%d ", *(int *)e);
 }
 
-
-void mixnet_address_printer(ELEMENT_TYPE e) {
-    printf("%hu ", *(mixnet_address *)e);
-}
-
 void graph_insert_helper(graph_t *graph, mixnet_address host, mixnet_address neighbor) {
     mixnet_address *host_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));
     mixnet_address *neighbor_ptr = (mixnet_address *)malloc(sizeof(mixnet_address));

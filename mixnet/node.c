@@ -110,6 +110,34 @@ mixnet_packet *generate_flood_packet() {
 }
 
 /**
+ * Generate lsa packet to build topology
+ * @return the pointer to a flood packet
+ */
+mixnet_packet *generate_lsa_packet(mixnet_address root_address,
+                                   uint16_t num_neighbors,
+                                   mixnet_address *neighbors) {
+    //The payload contains num_neighbors + 2 uint16_t, additional 2
+    //represents sender's address and num_neighbors
+    uint16_t payload_size = sizeof(uint16_t) * (num_neighbors + 2);
+    mixnet_packet *m_packet = malloc(sizeof(mixnet_packet) + payload_size);
+    m_packet->src_address = 0;  // can be set to arbitrary
+    m_packet->dst_address = 0;  // can be set to arbitrary
+    m_packet->type = PACKET_TYPE_LSA;
+    m_packet->payload_size = payload_size;
+    //set the payload for LSA packet
+    uint16_t *payload = malloc(payload_size);
+    payload[0] = root_address;
+    payload[1] = num_neighbors;
+    for (uint16_t i = 0; i < num_neighbors; i++) {
+        payload[i + 2] = neighbors[i];
+    }
+    memcpy(m_packet->payload, (const char *)payload, payload_size);
+    //free the payload
+    free(payload);
+    return m_packet;
+}
+
+/**
  * @brief wrapper function for mixnet_send
  *        will keep retry if buffer queue is full and return 0
  *        but error code -1 will be returned and not re-tried
@@ -179,6 +207,121 @@ void broadcast_flood(void *handle, const struct mixnet_node_config *config_ptr,
 }
 
 /**
+ * Broadcast the STP triple to every neighbor
+ * @param handle void * handler for control
+ * @param config_ptr pointer to node config
+ * @param host_address the address of host sending LSA packet
+ * @param num_neighbors_host number of neighbors of host
+ * @param self_address the node itself address
+ */
+void broadcast_lsa(void *handle, const struct mixnet_node_config *config_ptr,
+                   mixnet_address host_address, uint16_t num_neighbors_host,
+                   mixnet_address *host_neighbors) {
+    const uint16_t num_neighbors = config_ptr->num_neighbors;
+    for (uint16_t i = 0; i < num_neighbors; i++) {
+        mixnet_packet *packet = generate_lsa_packet(host_address, num_neighbors_host, host_neighbors);
+        if (send(handle, i, packet) == -1) {
+            free(packet);
+        }
+    }
+}
+
+uint16_t *routing_header_generator(uint16_t *route_length, vector_t *shortest_path, bool is_random) {
+    uint16_t *routing_header;
+    if (is_random && get_curr_time_ms() % 2) {
+        // generate "random" path
+        *route_length = *route_length + 2;
+        uint16_t routing_header_size = (*route_length + 2) * sizeof(uint16_t);
+        routing_header = malloc(routing_header_size);
+        routing_header[0] = *route_length;
+        routing_header[1] = 0;// the first "transporter"'s hop index
+        routing_header[2] = *((mixnet_address *)vec_get(shortest_path, 1));
+        routing_header[3] = *((mixnet_address *)vec_get(shortest_path, 0));
+        for (uint16_t i = 0; i < vec_size(shortest_path) - 2; i++) {
+            routing_header[i+4] = *((mixnet_address *)vec_get(shortest_path, i+1));
+        }
+    } else {
+        // best path
+        uint16_t routing_header_size = (*route_length + 2) * sizeof(uint16_t);
+        routing_header = malloc(routing_header_size);
+        routing_header[0] = *route_length;
+        routing_header[1] = 0;// the first "transporter"'s hop index
+        for (uint16_t i = 0; i < vec_size(shortest_path) - 2; i++) {
+            routing_header[i+2] = *((mixnet_address *)vec_get(shortest_path, i+1));
+        }
+    }
+    return routing_header;
+}
+
+mixnet_packet *generate_data_packet(const struct mixnet_node_config *config_ptr,
+                      vector_t *shortest_path, mixnet_packet *data_packet) {
+    mixnet_address source_address = config_ptr->node_addr;
+    mixnet_address destination_address = *((mixnet_address *)vec_get(shortest_path, vec_size(shortest_path)-1));
+    assert(vec_size(shortest_path) >= 2); // at least source -> destination
+    uint16_t route_length = (uint16_t)vec_size(shortest_path) - 2;
+    uint16_t data_size = data_packet->payload_size;
+    // get the routing header, also modify route_length if random
+    uint16_t *routing_header = routing_header_generator(&route_length, shortest_path, config_ptr->use_random_routing);
+    uint16_t routing_header_size = (route_length + 2) * sizeof(uint16_t);
+    mixnet_packet *m_packet = malloc(sizeof(mixnet_packet) + routing_header_size + data_size);
+    // fill in the field of m_packet
+    m_packet->src_address = source_address;
+    m_packet->dst_address = destination_address;
+    m_packet->payload_size = routing_header_size + data_size;
+    m_packet->type = PACKET_TYPE_DATA;
+    // set the routing header of the packet
+    memcpy(m_packet->payload, (const char *)routing_header, routing_header_size);
+    // copy in the true data part, +4 since data_packet from user has nonsense route length and hop index
+    memcpy(m_packet->payload + routing_header_size, data_packet->payload + 4, data_size);
+    // free the routing header
+    free(routing_header);
+    return m_packet;
+}
+
+/**
+ * When accumulate enough packets, send them all at once
+ * @param mix_buffer a pointer to the mix buffer
+ * @param config_ptr pointer to config struct
+ * @param handle the system handler
+ */
+void send_buffer(vector_t *mix_buffer, const struct mixnet_node_config *config_ptr, void *handle) {
+    for (int64_t i = 0; i <vec_size(mix_buffer); i++) {
+        mixnet_packet *packet = (mixnet_packet *)vec_get(mix_buffer, i);
+        uint16_t *routing_header = (uint16_t *)packet->payload;
+        mixnet_address next_hop;
+        if (routing_header[0] == routing_header[1]) {
+            // we are the last hop, send directly to destination
+            next_hop = packet->dst_address;
+        } else {
+            next_hop = routing_header[2+routing_header[1]];
+        }
+        for (uint16_t i = 0; i < config_ptr->num_neighbors; i++) {
+            if (config_ptr->neighbor_addrs[i] == next_hop) {
+                send(handle, i, packet);
+            }
+        }
+    }
+    mix_buffer->size = 0;
+}
+
+/**
+ * Add a new generated packet into mix buffer
+ * when reach mix factor, send them all out
+ * @param mix_buffer the pointer to the mix buffer
+ * @param new_packet pointer to a mixnet_packet
+ * @param config_ptr pointer to the config
+ * @param handle the system handler
+ */
+void add_buffer(vector_t *mix_buffer, mixnet_packet *new_packet,
+                const struct mixnet_node_config *config_ptr, void *handle) {
+    uint16_t mix_factor = config_ptr->mixing_factor;
+    vec_push_back(mix_buffer, new_packet);
+    if (vec_size(mix_buffer) == mix_factor) {
+        send_buffer(mix_buffer, config_ptr, handle);
+    }
+}
+
+/**
  * Check if we have found a better root or a better path to path,
  * if we have, we would update stp_info, representing our knowledge
  * to root
@@ -240,11 +383,21 @@ void run_node(void *handle, volatile bool *keep_running,
   // hello from the root (on stack),  time since last time sending
   // hello as a root (on stack), and our belief about potential
   // children node, represented as a bool array (on heap)
+  // and the node topology graph and Dijkstra's result vector
   const uint16_t num_neighbors = config.num_neighbors;
   const uint64_t root_hello_interval_ms =
       (uint64_t)config.root_hello_interval_ms;
   const uint64_t reelection_interval_ms =
       (uint64_t)config.reelection_interval_ms;
+  vector_t *mix_buffer = create_vector();
+  graph_t * const graph = create_graph(mixnet_address_equal);
+  vector_t *dijkstra_result = NULL; // the shortest path calculation triples
+  bool dijkstra_run = false;
+
+  // add self and neighbors into the graph
+  for (uint16_t i = 0; i < num_neighbors; i++) {
+      mixnet_add_neighbor(graph, config.node_addr, config.neighbor_addrs[i]);
+  }
 
   // initially, each node believes it is the root in the STP topology
   stp_info_t stp_info;
@@ -262,9 +415,19 @@ void run_node(void *handle, volatile bool *keep_running,
   uint64_t last_time_sending_hello = curr_time;
   uint64_t last_time_receiving_hello = curr_time;
 
+  // broadcast LSA neighbor information out to neighbors
+  for (uint16_t i = 0; i < num_neighbors; i++) {
+      mixnet_packet *lsa_packet = generate_lsa_packet(config.node_addr, config.num_neighbors, config.neighbor_addrs);
+      if (send(handle, i, lsa_packet) == -1) {
+          free(lsa_packet);
+          printf("send lsa packet leads to -1 signal\nAbort!\n");
+          exit(1);
+      }
+  }
+
   while (*keep_running) {
     uint8_t port = 0;
-    bool success = false;
+    bool should_not_free = false;
     mixnet_packet *packet = NULL;
 
     // Whether we have received hello from the root node in this epoch
@@ -273,14 +436,42 @@ void run_node(void *handle, volatile bool *keep_running,
     int value = mixnet_recv(handle, &port, &packet);
     curr_time = get_curr_time_ms();
     if (value != 0) {
+      if (!dijkstra_run && (packet->type == PACKET_TYPE_DATA || packet->type == PACKET_TYPE_PING)) {
+        dijkstra_result = dijkstra_shortest_path(graph, config.node_addr);
+        dijkstra_run = true;
+        // debug info below
+        if (config.node_addr == 4) {
+            for (int64_t i = 0; i < vec_size(dijkstra_result); i++) {
+                dijkstra_t *triple = vec_get(dijkstra_result, i);
+                printf("For node 4 To Destination %hu, with Last-hop %hu, of shortest distance %lld\n", triple->destination,
+                       triple->last_hop, triple->distance);
+            }
+        }
+      }
       // Data packet, check if it's for a neighbor
       if (packet->type == PACKET_TYPE_DATA) {
-        for (size_t nid = 0; nid < num_neighbors && !success; nid++) {
-          if (config.neighbor_addrs[nid] == packet->dst_address) {
-            // mixnet_send(handle, nid, packet);
-            // Ought to check if send() returns -1!
-            success = send(handle, nid, packet) != -1;
-          }
+        // first check if the packet is generated by the user
+        if (port == num_neighbors) {
+            // we need to generate the path and send it to the correct user
+            // shortest_path is of form [source, X1, X2, ..., Xn, destination]
+            vector_t *shortest_path = construct_path(dijkstra_result, config.node_addr, packet->dst_address);
+            mixnet_packet *new_data_packet = generate_data_packet(&config, shortest_path, packet);
+            free_vector(shortest_path);
+            // add the new_data_packet into mix buffer
+            add_buffer(mix_buffer, new_data_packet, &config, handle);
+        } else {
+            uint16_t *routing_header = (uint16_t *)packet->payload;
+            uint16_t route_length = routing_header[0];
+            uint16_t curr_hop = routing_header[1];
+            if (route_length == curr_hop) {
+                // replay this packet to my user
+                send(handle, config.num_neighbors, packet);
+                should_not_free = true;
+            } else {
+                routing_header[1] += 1;
+                add_buffer(mix_buffer, packet, &config, handle);
+                should_not_free = true;
+            }
         }
         // STP packet
       } else if (packet->type == PACKET_TYPE_STP) {
@@ -323,9 +514,23 @@ void run_node(void *handle, volatile bool *keep_running,
             (port < num_neighbors && is_active_link[port])) {
           broadcast_flood(handle, &config, is_active_link, num_neighbors, port);
         }
+      } else if (packet->type == PACKET_TYPE_LSA) {
+          // first check if we have processed LSA packet from the node sending LSA packet
+          uint16_t *payload = (uint16_t *)packet->payload;
+          if (graph_find_vertex(graph, &payload[0]) == NULL) {
+              // not receive this node's neighbor LSA information so far
+              // first add the adjacency information into the graph
+              mixnet_address host = payload[0];
+              uint16_t num_neighbors_host = payload[1];
+              for (uint16_t i = 0; i < num_neighbors_host; i++) {
+                  mixnet_add_neighbor(graph, host, payload[i+2]);
+              }
+              // and propagate this packet to every neighbors
+              broadcast_lsa(handle, &config, host, num_neighbors_host, &payload[2]);
+          }
       }
 
-      if (!success) {
+      if (!should_not_free) {
         free(packet);
       }
     }
@@ -357,5 +562,10 @@ void run_node(void *handle, volatile bool *keep_running,
   }
 
   // gracefully exit and release dynamic allocated memory
+  free_vector(mix_buffer);
+  free_graph(graph);
+  if (dijkstra_result != NULL) {
+      free_vector(dijkstra_result);
+  }
   free(is_active_link);
 }
