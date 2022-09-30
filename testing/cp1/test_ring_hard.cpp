@@ -49,6 +49,10 @@ void testcase(orchestrator* orchestrator) {
             i, (i % 4), PACKET_TYPE_FLOOD));
     }
     sleep(5); // Wait for packets to propagate
+
+    // Send a PING packet
+    DIE_ON_ERROR(orchestrator->send_packet(0, 4, PACKET_TYPE_PING));
+    sleep(5);
 }
 
 void return_code(test_error_code_t value) {
@@ -59,8 +63,8 @@ int main(int argc, char **argv) {
     std::vector<std::vector<mixnet_address>> topology;
     create_ring_topology(8, topology);
 
-    std::vector<mixnet_address> mixaddrs {12, 37, 52, 71,
-                                          34, 16, 28, 46};
+    std::vector<mixnet_address> mixaddrs {0, 1, 2, 3,
+                                          4, 5, 6, 7};
     orchestrator orchestrator;
     orchestrator.configure(argc, argv);
     orchestrator.register_cb_pcap(pcap);

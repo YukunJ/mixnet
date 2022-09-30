@@ -50,6 +50,11 @@ void testcase(orchestrator* orchestrator) {
         }
     }
     sleep(5); // Wait for packets to propagate
+
+    // Send a PING packet
+    DIE_ON_ERROR(orchestrator->send_packet(0, 7, PACKET_TYPE_PING));
+
+    sleep(5);
 }
 
 void return_code(test_error_code_t value) {
@@ -57,9 +62,9 @@ void return_code(test_error_code_t value) {
 }
 
 int main(int argc, char **argv) {
-    std::vector<mixnet_address> mixaddrs {52, 31, 108, 77, 23, 41, 62};
+    std::vector<mixnet_address> mixaddrs {0, 1, 2, 3, 4, 5, 6, 7};
     std::vector<std::vector<mixnet_address>> topology;
-    for (uint16_t i = 0; i < 7; i++) {
+    for (uint16_t i = 0; i < 8; i++) {
         topology.push_back(std::vector<mixnet_address>());
     }
     // Level 1
@@ -77,6 +82,10 @@ int main(int argc, char **argv) {
     topology[5].push_back(2);
     topology[2].push_back(6);
     topology[6].push_back(2);
+
+    // Level 3
+    topology[3].push_back(7);
+    topology[7].push_back(3);
 
     orchestrator orchestrator;
     orchestrator.configure(argc, argv);

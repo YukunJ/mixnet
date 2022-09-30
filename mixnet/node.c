@@ -581,6 +581,9 @@ void run_node(void *handle, volatile bool *keep_running,
               uint64_t *send_time =
                   (uint64_t *)(routing_header + 2 + route_length + 1);
               *send_time = get_curr_time_ms() - *send_time;
+              // CP2 Experiment
+              printf("I am node %hu and I send Ping packet to node %hu, get RTT Time = %lld ms\n",
+                     packet->dst_address, packet->src_address, *send_time);
               send(handle, config.num_neighbors, packet);
               should_not_free = true;
             }

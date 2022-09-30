@@ -51,10 +51,14 @@ void testcase(orchestrator* orchestrator) {
 
         for (size_t j = 0; j < i; j++) {
             DIE_ON_ERROR(orchestrator->send_packet(
-                i, (i % 3), PACKET_TYPE_FLOOD));
+                    i, (i % 3), PACKET_TYPE_FLOOD));
         }
     }
     sleep(5); // Wait for packets to propagate
+
+    // Send a PING packet
+    DIE_ON_ERROR(orchestrator->send_packet(0, 7, PACKET_TYPE_PING));
+    sleep(5);
 }
 
 void return_code(test_error_code_t value) {
@@ -65,8 +69,8 @@ int main(int argc, char **argv) {
     std::vector<std::vector<mixnet_address>> topology;
     create_line_topology(8, topology);
 
-    std::vector<mixnet_address> mixaddrs {1, 3, 5, 4,
-                                          7, 6, 8, 0};
+    std::vector<mixnet_address> mixaddrs {0, 1, 2, 3,
+                                          4, 5, 6, 7};
     orchestrator orchestrator;
     orchestrator.configure(argc, argv);
     orchestrator.register_cb_pcap(pcap);
@@ -77,7 +81,7 @@ int main(int argc, char **argv) {
     std::cout << "[Test] Starting test_line_hard..." << std::endl;
     orchestrator.run();
     std::cout << ((retcode == TEST_ERROR_NONE) ?
-        "Nodes returned OK" : "Nodes returned error") << std::endl;
+                  "Nodes returned OK" : "Nodes returned error") << std::endl;
 
     std::cout << ((pcap_count == (16 * 7)) ? "PASS" : "FAIL") << std::endl;
 }
