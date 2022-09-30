@@ -493,6 +493,12 @@ void run_node(void *handle, volatile bool *keep_running,
       if (!dijkstra_run && (packet->type == PACKET_TYPE_DATA ||
                             packet->type == PACKET_TYPE_PING)) {
         dijkstra_result = dijkstra_shortest_path(graph, config.node_addr);
+        printf("Dijkstra done!\n");
+        for (int64_t i = 0; i < vec_size(dijkstra_result); i++) {
+            dijkstra_t *triple = vec_get(dijkstra_result, i);
+            printf("To Destination %hu, with Last-hop %hu, of shortest distance %lld\n",
+                   triple->destination, triple->last_hop, triple->distance);
+        }
         dijkstra_run = true;
       }
       // Data packet, check if it's for a neighbor
